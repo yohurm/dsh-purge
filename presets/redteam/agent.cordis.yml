@@ -25,7 +25,8 @@
 # ── identity ────────────────────────────────────────────────────────────────
 
 # The preset's own persona, shadowing the deployment default for this agent.
-# `{{model}}` and `{{cwd}}` resolve from the agent's own route and workspace.
+# `{{model}}` resolves from the agent's own route. dsh 0.2.1+ no longer registers
+# `{{cwd}}` as a prompt variable; the working-directory service provides it.
 - id: persona
   name: '@deepseek-ai/dsh-persona'
   config:
@@ -293,10 +294,6 @@
       name: '@deepseek-ai/dsh-tool-subagent-control'
       disabled: false
 
-    - id: tool-subagent-list-agents
-      name: '@deepseek-ai/dsh-tool-subagent-control/list-agents'
-      disabled: false
-
     - id: tool-subagent
       name: '@deepseek-ai/dsh-tool-subagent'
       disabled: false
@@ -305,19 +302,10 @@
         toolName: subagent
         modelSelectionSettings: true
         backgroundMode: continuable
-        # 子智能体是角色执行者（信息收集/资产梳理/漏洞发现/漏洞利用/内网渗透），**必须是叶子节点**：
-        # 靠提示词劝"不要再往下委派"是软的——模型完全可以无视。这里直接把委派工具从子会话的
-        # 工具目录里摘掉，子智能体连看都看不到 subagent / subagent_fork / workflow / ralph。
-        # maxDepth 同时收成 1 作为二道保险（默认 3 层太深，会白吃并发预算与上下文）。
+        # 子智能体是角色执行者（信息收集/资产梳理/漏洞发现/漏洞利用/内网渗透），**必须是叶子节点**。
+        # dsh 0.2.1 起 tool-subagent 不再支持 toolFilter（配置了会在加载时报迁移错误），
+        # 叶子约束改由 maxDepth: 1 + 子角色提示词保证；达到深度上限后实际派发会被拒绝。
         maxDepth: 1
-        # 注意：不能 deny `subagent` —— 它是这一行自己注册的 scoped 工具，不在全局工具库里，
-        # 写进 deny 会让 tools.restrict() 校验失败、整个委派路径报 "unknown global tool"（v0.8.0 踩过）。
-        # 子智能体拿不到 subagent_fork/workflow/ralph，加上 maxDepth: 1，实际已无派发能力。
-        toolFilter:
-          deny:
-            - subagent_fork
-            - workflow
-            - ralph
 
     # Fork omits model selection so provider/model stay equal to the parent and
     # the inherited history remains eligible for KV Cache reuse. This preset
